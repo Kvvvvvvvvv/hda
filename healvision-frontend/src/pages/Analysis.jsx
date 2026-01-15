@@ -78,7 +78,7 @@ const Analysis = () => {
       if (patientData.clinical_indication) formData.append('clinical_indication', patientData.clinical_indication)
       formData.append('include_explanation', true)
 
-      const response = await axios.post('/analyze', formData, {
+      const response = await axios.post('/api/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
