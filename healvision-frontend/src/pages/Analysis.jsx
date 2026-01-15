@@ -72,13 +72,13 @@ const Analysis = () => {
       const formData = new FormData()
       formData.append('image', selectedFile)
       formData.append('patient_id', patientData.patient_id)
-      formData.append('age', patientData.age)
-      formData.append('gender', patientData.gender)
-      formData.append('study_id', patientData.study_id)
-      formData.append('clinical_indication', patientData.clinical_indication)
-      formData.append('include_explanation', 'true')
+      if (patientData.age) formData.append('age', parseInt(patientData.age))
+      if (patientData.gender) formData.append('gender', patientData.gender)
+      if (patientData.study_id) formData.append('study_id', patientData.study_id)
+      if (patientData.clinical_indication) formData.append('clinical_indication', patientData.clinical_indication)
+      formData.append('include_explanation', true)
 
-      const response = await axios.post('/api/analyze', formData, {
+      const response = await axios.post('/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
