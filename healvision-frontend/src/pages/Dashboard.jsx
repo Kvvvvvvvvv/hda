@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, Eye, Calendar, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Activity, Eye, Calendar, TrendingUp, AlertTriangle, CheckCircle, Settings as SettingsIcon } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const Dashboard = () => {
@@ -173,7 +173,7 @@ const Dashboard = () => {
             <span>View History</span>
           </button>
           <button className="btn-secondary flex items-center justify-center space-x-2">
-            <Settings className="h-5 w-5" />
+            <SettingsIcon className="h-5 w-5" />
             <span>Settings</span>
           </button>
         </div>
