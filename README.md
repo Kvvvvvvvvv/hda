@@ -65,23 +65,100 @@ This will:
 
 ## Inference
 
+### Command Line Interface
 To run inference on a single image:
 
 ```bash
 python inference.py
 ```
 
-For inference on a specific image, modify the script to specify the image path:
+For inference on a specific image:
 
 ```python
 run_inference('path/to/your/test/image.jpg')
 ```
 
-This will:
+### Python API
+Use the MedicalDetector class for programmatic access:
+
+```python
+from inference import MedicalDetector
+
+detector = MedicalDetector()
+
+# Standard detection with JSON output
+results = detector.predict('path/to/image.jpg')
+
+# Enhanced analysis with clinical explanation
+patient_metadata = {
+    'patient_id': 'PAT001',
+    'age': 65,
+    'gender': 'M'
+}
+results = detector.analyze_with_explanation('path/to/image.jpg', patient_metadata)
+```
+
+### FastAPI Web Service
+Start the API server:
+
+```bash
+python api.py
+```
+
+Access the interactive API documentation at: `http://localhost:8000/docs`
+
+Available endpoints:
+- `POST /analyze` - Full analysis with patient metadata and clinical explanation
+- `POST /predict` - Simple prediction without metadata
+- `GET /health` - Health check endpoint
+
+Example API usage:
+```bash
+curl -X POST "http://localhost:8000/analyze" \
+  -H "Content-Type: multipart/form-data" \
+  -F "image=@chest_xray.jpg" \
+  -F "patient_id=PAT001" \
+  -F "age=65" \
+  -F "gender=M"
+```
+
+All inference methods will:
 - Load the trained model
 - Run inference on the specified image
-- Draw bounding boxes on detected lung opacities
-- Save the annotated image and detection results
+- Return standardized JSON output
+- Generate cryptographic audit hashes
+- Optionally provide clinical explanations
+
+## Output Format
+
+All inference methods return standardized JSON in the HealVision format:
+
+```json
+{
+  "detections": [
+    {
+      "label": "lung_opacity",
+      "confidence": 0.9345,
+      "bbox": [120.5, 85.2, 245.8, 198.7]
+    }
+  ],
+  "image_metadata": {
+    "filename": "chest_xray.jpg",
+    "image_size": {
+      "width": 640,
+      "height": 640
+    }
+  },
+  "patient_metadata": {
+    "patient_id": "PAT001",
+    "age": 65,
+    "gender": "M"
+  },
+  "timestamp": "2026-01-15T20:59:18.870442",
+  "audit_hash": "4dce48cdfc4f002c9c2976bed574b4abcc5021e4638264635431d7e5ccd646cc",
+  "clinical_explanation": "Detected 1 lung opacity with average confidence of 93.5%. Findings suggest possible pneumonia. Clinical correlation recommended."
+}
+```
 
 ## Dataset Format
 

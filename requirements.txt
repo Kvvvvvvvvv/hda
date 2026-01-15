@@ -1,0 +1,21 @@
+# Core dependencies
+ultralytics>=8.0.0
+torch>=1.13.0
+torchvision>=0.14.0
+numpy>=1.21.0
+opencv-python>=4.5.0
+pillow>=8.3.0
+
+# Web API dependencies
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-multipart>=0.0.5
+
+# Utilities
+matplotlib>=3.5.0
+pyyaml>=6.0
+requests>=2.28.0
+
+# Development (optional)
+jupyter>=1.0.0
+ipython>=8.0.0

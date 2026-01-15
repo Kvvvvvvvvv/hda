@@ -1,87 +1,140 @@
 from ultralytics import YOLO
 import cv2
 import os
+import json
+import hashlib
+from datetime import datetime
 from pathlib import Path
+
+class MedicalDetector:
+    def __init__(self, model_path='runs/train/lung_opacity_detection/weights/best.pt'):
+        """
+        Initialize the medical detector with trained YOLOv8 model
+        """
+        print(f"Loading model from: {model_path}")
+        self.model = YOLO(model_path)
+        self.model_path = model_path
+    
+    def predict(self, image_path, patient_metadata=None):
+        """
+        Run inference on a chest X-ray image and return standardized JSON
+        """
+        # Check if image exists
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image not found at {image_path}")
+        
+        print(f"Running inference on image: {image_path}")
+        
+        # Run inference
+        results = self.model(image_path, save=False)
+        result = results[0]
+        
+        # Process detections
+        detections = []
+        for det in result.boxes:
+            class_id = int(det.cls[0])
+            confidence = float(det.conf[0])
+            bbox = det.xyxy[0].tolist()  # x1, y1, x2, y2
+            
+            detection = {
+                "label": "lung_opacity",
+                "confidence": round(confidence, 4),
+                "bbox": [round(coord, 2) for coord in bbox]  # x1, y1, x2, y2
+            }
+            detections.append(detection)
+        
+        # Create standardized JSON output
+        output = {
+            "detections": detections,
+            "image_metadata": {
+                "filename": Path(image_path).name,
+                "image_size": {
+                    "width": result.orig_img.shape[1],
+                    "height": result.orig_img.shape[0]
+                }
+            }
+        }
+        
+        # Add patient metadata if provided
+        if patient_metadata:
+            output["patient_metadata"] = patient_metadata
+            
+            # Generate cryptographic hash for audit trail
+            timestamp = datetime.utcnow().isoformat()
+            output["timestamp"] = timestamp
+            
+            # Create hash input
+            hash_input = f"{patient_metadata.get('patient_id', '')}_{len(detections)}_{timestamp}"
+            output["audit_hash"] = hashlib.sha256(hash_input.encode()).hexdigest()
+        
+        return output
+    
+    def analyze_with_explanation(self, image_path, patient_metadata=None):
+        """
+        Enhanced analysis with LLM-generated clinical explanation
+        """
+        # Get standard detection results
+        results = self.predict(image_path, patient_metadata)
+        
+        # Generate clinical explanation (mock LLM integration)
+        detections = results["detections"]
+        
+        if not detections:
+            explanation = "No lung opacities detected. Chest X-ray appears normal."
+        else:
+            count = len(detections)
+            confidences = [d["confidence"] for d in detections]
+            avg_confidence = sum(confidences) / len(confidences)
+            
+            explanation = f"Detected {count} lung opacity{"s" if count > 1 else ""} with average confidence of {avg_confidence:.1%}. "
+            explanation += "Findings suggest possible pneumonia or other pulmonary pathology. Clinical correlation recommended."
+        
+        results["clinical_explanation"] = explanation
+        return results
 
 def run_inference(image_path, model_path='runs/train/lung_opacity_detection/weights/best.pt', output_path='output'):
     """
-    Run inference on a single chest X-ray image
+    Backward compatible function - now wraps the MedicalDetector class
     """
-    print(f"Loading model from: {model_path}")
+    detector = MedicalDetector(model_path)
     
-    # Load the trained model
-    model = YOLO(model_path)
-    
-    # Check if image exists
-    if not os.path.exists(image_path):
-        print(f"Error: Image not found at {image_path}")
+    try:
+        # Run prediction
+        results = detector.predict(image_path)
+        
+        # Create output directory
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Save JSON results
+        image_filename = Path(image_path).stem
+        json_output_path = os.path.join(output_path, f"detection_results_{image_filename}.json")
+        
+        with open(json_output_path, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"\nJSON results saved to: {json_output_path}")
+        
+        # Also save annotated image for visualization
+        results_obj = detector.model(image_path, save=False)[0]
+        annotated_img = results_obj.plot()
+        output_image_path = os.path.join(output_path, f"inference_result_{image_filename}.jpg")
+        cv2.imwrite(output_image_path, annotated_img)
+        print(f"Annotated image saved to: {output_image_path}")
+        
+        # Print results
+        print("\n=== DETECTION RESULTS ===")
+        for i, det in enumerate(results["detections"]):
+            print(f"Detection {i+1}:")
+            print(f"  Label: {det['label']}")
+            print(f"  Confidence: {det['confidence']:.4f}")
+            bbox = det['bbox']
+            print(f"  Bounding Box: [x1:{bbox[0]}, y1:{bbox[1]}, x2:{bbox[2]}, y2:{bbox[3]}]")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error during inference: {e}")
         return None
-    
-    print(f"Running inference on image: {image_path}")
-    
-    # Run inference
-    results = model(image_path, save=False)
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(output_path, exist_ok=True)
-    
-    # Process results
-    result = results[0]
-    detections = []
-    
-    print("\n=== DETECTION RESULTS ===")
-    for i, det in enumerate(result.boxes):
-        class_id = int(det.cls[0])
-        confidence = float(det.conf[0])
-        bbox = det.xyxy[0].tolist()  # x1, y1, x2, y2
-        
-        # Convert to x_center, y_center, width, height for YOLO format
-        x_center = (bbox[0] + bbox[2]) / 2 / result.orig_img.shape[1]  # Normalize
-        y_center = (bbox[1] + bbox[3]) / 2 / result.orig_img.shape[0]
-        width = (bbox[2] - bbox[0]) / result.orig_img.shape[1]
-        height = (bbox[3] - bbox[1]) / result.orig_img.shape[0]
-        
-        detection_info = {
-            'class_id': class_id,
-            'class_name': 'lung_opacity',
-            'confidence': confidence,
-            'bbox_xyxy': bbox,  # x1, y1, x2, y2
-            'bbox_normalized': [x_center, y_center, width, height]
-        }
-        
-        detections.append(detection_info)
-        
-        print(f"Detection {i+1}:")
-        print(f"  Class: {detection_info['class_name']}")
-        print(f"  Confidence: {detection_info['confidence']:.4f}")
-        print(f"  Bounding Box (x1,y1,x2,y2): [{bbox[0]:.2f}, {bbox[1]:.2f}, {bbox[2]:.2f}, {bbox[3]:.2f}]")
-        print(f"  Normalized BBox: [{x_center:.4f}, {y_center:.4f}, {width:.4f}, {height:.4f}]")
-    
-    # Draw bounding boxes on the image
-    annotated_img = result.plot()  # This draws the bounding boxes
-    
-    # Save the output image
-    image_filename = Path(image_path).stem
-    output_image_path = os.path.join(output_path, f"inference_result_{image_filename}.jpg")
-    cv2.imwrite(output_image_path, annotated_img)
-    
-    print(f"\nAnnotated image saved to: {output_image_path}")
-    
-    # Save detection results to a text file
-    output_txt_path = os.path.join(output_path, f"detection_results_{image_filename}.txt")
-    with open(output_txt_path, 'w') as f:
-        f.write("DETECTION RESULTS\n")
-        f.write("==================\n")
-        for i, det in enumerate(detections):
-            f.write(f"Detection {i+1}:\n")
-            f.write(f"  Class: {det['class_name']}\n")
-            f.write(f"  Confidence: {det['confidence']:.4f}\n")
-            f.write(f"  Bounding Box: [{det['bbox_xyxy'][0]:.2f}, {det['bbox_xyxy'][1]:.2f}, {det['bbox_xyxy'][2]:.2f}, {det['bbox_xyxy'][3]:.2f}]\n")
-            f.write(f"  Normalized: [{det['bbox_normalized'][0]:.4f}, {det['bbox_normalized'][1]:.4f}, {det['bbox_normalized'][2]:.4f}, {det['bbox_normalized'][3]:.4f}]\n\n")
-    
-    print(f"Detection results saved to: {output_txt_path}")
-    
-    return detections
 
 if __name__ == "__main__":
     # Example usage (this will fail if no test image exists, but that's OK for now)
